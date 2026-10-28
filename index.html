@@ -1,0 +1,992 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Préparer la photo d'un tableau pour la faire développer en 15 × 20 cm : tableau redressé, mur coupé, bord blanc. Tout se fait sur le téléphone.">
+<meta name="version" content="2026-10-28-1313">
+<link rel="icon" href="data:,">
+<title>Préparer les photos de vos tableaux</title>
+<!--
+  preparer-photos-book.html — outil d'une page pour préparer les photos des tableaux d'un book (portfolio papier).
+  Créé le 28/10/2026. Même travail qu'un script de retouche sur ordinateur, mais dans le navigateur
+  d'un téléphone : la personne n'a qu'un téléphone.
+  Chaîne : photo (orientation du téléphone respectée, réduite à 4000 points au plus) → coins du tableau trouvés
+  (couleur du mur prise au bord, distance de couleur Lab, seuils, fermeture / ouverture, plus grande zone,
+  enveloppe convexe, coins extrêmes, contrôle de vraisemblance ; puis bords affinés en pleine résolution,
+  l'ombre du tableau laissée sur le mur) → coins corrigés au doigt (loupe) →
+  redressement par homographie (échantillonnage bilinéaire) → JPEG 15 × 20 cm à 300 points par pouce
+  (1772 × 2362, ou 2362 × 1772 pour un tableau plus large que haut), tableau entier centré, bord blanc
+  d'au moins 4 mm, couleurs non retouchées → partage, téléchargement ou appui long.
+  Règles : rien n'est envoyé ni gardé (aucun stockage : la page partage son adresse d'origine avec le
+  questionnaire, dont les réponses gardées ne doivent jamais être touchées) ; aucune ressource d'un autre
+  serveur ; aucune donnée personnelle dans ce fichier.
+-->
+<style>
+:root{
+  --paper:#F9F5EE;--panel:#FFFFFF;--ink:#2B2622;--muted:#6E645B;--line:#E4D9C9;--rule:#CDBBA6;
+  --garance:#B4405E;--garance-soft:#F8E4EA;--outremer:#34509B;--outremer-soft:#E3E8F6;
+  --veronese:#246B60;--veronese-soft:#DDF0EB;--sable-soft:#F6EDDC;--sur-accent:#FFFFFF;
+  --titre:Georgia,"Times New Roman",serif;
+  --texte:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--paper:#1B1714;--panel:#262019;--ink:#F0E9DF;--muted:#B0A493;--line:#3C332B;--rule:#5A4C3E;
+    --garance:#E2849B;--garance-soft:#3A2028;--outremer:#8FA6E8;--outremer-soft:#1F2740;
+    --veronese:#7CC7B8;--veronese-soft:#1B342F;--sable-soft:#3A2F1C;--sur-accent:#1B1714}
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:19px/1.55 var(--texte)}
+main{max-width:560px;margin:0 auto;padding:18px 16px 40px}
+.hero{background:var(--panel);border-left:12px solid var(--garance);border-radius:14px;padding:16px 16px 14px;margin:0 0 20px}
+.barrette{display:flex;gap:4px;margin:0 0 8px}.barrette i{display:block;width:22px;height:5px;border-radius:3px}
+.barrette i:nth-child(1){background:var(--garance)}.barrette i:nth-child(2){background:var(--outremer)}.barrette i:nth-child(3){background:var(--veronese)}
+h1{font:700 29px/1.15 var(--titre);margin:0 0 8px}
+h2{font:700 25px/1.2 var(--titre);margin:4px 0 12px}
+.lede{color:var(--muted);margin:0}
+p{margin:0 0 14px}
+.etapes{margin:0 0 18px;padding:0;list-style:none;counter-reset:e}
+.etapes li{counter-increment:e;display:flex;gap:12px;align-items:flex-start;margin:0 0 10px}
+.etapes li::before{content:counter(e);flex:none;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--garance);color:var(--sur-accent);font-weight:700;font-size:17px}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:58px;margin:0 0 12px;padding:12px 16px;border-radius:14px;font:inherit;font-weight:700;text-align:center;cursor:pointer;border:2px solid var(--outremer);background:var(--panel);color:var(--outremer)}
+.btn.principal{background:var(--outremer);color:var(--sur-accent)}
+.btn:focus-visible,summary:focus-visible,input:focus-visible,canvas:focus-visible,label.btn:has(+ input:focus-visible){outline:3px solid var(--garance);outline-offset:2px}
+.btn[disabled]{opacity:.55;cursor:wait}
+.cache{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.rassure{color:var(--veronese);font-weight:700}
+.box{background:var(--panel);border-top:6px solid var(--sable-soft);border-radius:14px;padding:14px 16px;margin:0 0 16px}
+.box.info{border-top-color:var(--outremer)}.box.ok{border-top-color:var(--veronese)}.box.rose{border-top-color:var(--garance)}
+.box strong.titre{display:block;font:700 20px/1.3 var(--titre);margin:0 0 8px}
+.box ul{margin:0;padding-left:22px}.box li{margin:0 0 8px}.box li:last-child{margin:0}
+details{background:var(--panel);border-radius:14px;margin:0 0 16px;border:1px solid var(--line)}
+summary{cursor:pointer;padding:14px 16px;min-height:54px;font-weight:700;color:var(--outremer)}
+details>div{padding:0 16px 14px}
+details ul{margin:0;padding-left:22px}details li{margin:0 0 8px}
+.aide{color:var(--ink)}
+.scene{position:relative;margin:0 auto 14px;background:var(--panel);border-radius:10px;overflow:hidden;line-height:0}
+#vue{display:block;margin:0 auto;touch-action:pan-y pinch-zoom;cursor:crosshair}
+.poignee{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;touch-action:none;cursor:grab}
+.loupe{position:absolute;top:8px;width:132px;height:132px;border-radius:50%;overflow:hidden;border:4px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.45);pointer-events:none;background:#000}
+.loupe.gauche{left:8px}.loupe.droite{right:8px}
+.loupe canvas{display:block;width:100%;height:100%}
+.taille{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 6px}
+.taille label{flex:1 1 120px;color:var(--ink)}
+.taille input{display:block;width:100%;margin-top:4px;font:inherit;font-size:19px;color:var(--ink);background:var(--paper);border:2px solid var(--rule);border-radius:10px;padding:10px;min-height:52px}
+#apercu{display:block;width:100%;height:auto;margin:0 0 14px;border:1px solid var(--line);border-radius:6px;background:#fff;-webkit-touch-callout:default}
+.message,#message-enregistrer{margin:0 0 14px;font-weight:700}
+.message:empty,#message-enregistrer:empty{display:none}
+.message.erreur,#message-enregistrer.erreur{color:var(--garance)}
+.message.ok,#message-enregistrer.ok{color:var(--veronese)}
+footer{color:var(--muted);font-size:18px;margin-top:26px;border-top:1px solid var(--line);padding-top:12px}
+[hidden]{display:none !important}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto !important}}
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="barrette" aria-hidden="true"><i></i><i></i><i></i></div>
+    <h1>Préparer les photos de vos tableaux</h1>
+    <p class="lede">Pour votre book : chaque photo devient prête à développer en 15&nbsp;×&nbsp;20&nbsp;cm.</p>
+  </header>
+
+  <section id="ecran-accueil">
+    <div class="box rose" id="ouvrir-ailleurs" hidden>
+      <strong class="titre">Ouvrez cette page dans Safari ou Chrome</strong>
+      <p>Pour que tout marche, ouvrez cette page dans Safari (iPhone) ou Chrome (Android) : touchez les trois points ou l'icône de partage, puis « Ouvrir dans Safari », « Ouvrir dans Chrome » ou « Ouvrir dans le navigateur ».</p>
+    </div>
+    <ol class="etapes">
+      <li><span>Choisissez la photo d'un tableau (ou prenez-la tout de suite), avec un peu de mur tout autour du tableau.</span></li>
+      <li><span>Vérifiez que les 4&nbsp;ronds sont sur les 4&nbsp;coins du tableau.</span></li>
+      <li><span>Enregistrez la photo prête : le tableau est redressé, le mur autour est coupé, et un bord blanc l'entoure pour que rien ne soit coupé au tirage.</span></li>
+    </ol>
+    <label class="btn principal" for="choix">Choisir une photo</label>
+    <input class="cache" type="file" id="choix" accept="image/*">
+    <p class="message" role="status" aria-live="polite"></p>
+    <p class="rassure">Vos photos restent sur votre téléphone : rien n'est envoyé, rien n'est gardé.</p>
+    <details>
+      <summary>Conseils pour une bonne photo</summary>
+      <div><ul>
+        <li>Le tableau en entier, bien de face, rien devant, avec un peu de mur tout autour.</li>
+        <li>À la lumière du jour, sans soleil direct sur le tableau, sans flash (pas de reflet), et sans lampe sur le côté (pas d'ombre du tableau sur le mur).</li>
+        <li>Le téléphone bien droit, à la hauteur du milieu du tableau.</li>
+        <li>Un mur uni derrière : les coins se trouvent plus facilement.</li>
+      </ul></div>
+    </details>
+  </section>
+
+  <section id="ecran-coins" hidden>
+    <h2>Les 4 coins du tableau</h2>
+    <p id="consigne-coins">Placez les 4 ronds exactement sur les 4 coins du tableau. Faites glisser un rond avec le doigt : une loupe vous montre le coin.</p>
+    <div class="scene" id="scene">
+      <canvas id="vue" tabindex="0" aria-label="Photo du tableau avec les 4 coins à placer" aria-describedby="aide-clavier"></canvas>
+      <div class="poignee" aria-hidden="true"></div><div class="poignee" aria-hidden="true"></div><div class="poignee" aria-hidden="true"></div><div class="poignee" aria-hidden="true"></div>
+      <div class="loupe gauche" id="loupe" hidden><canvas id="loupe-img" width="264" height="264"></canvas></div>
+    </div>
+    <p class="cache" id="aide-clavier">Au clavier : touches 1 à 4 pour choisir un coin, flèches pour le déplacer (avec la touche Majuscule : plus vite).</p>
+    <button class="btn principal" id="preparer" type="button">C'est bon : préparer la photo</button>
+    <p class="message" role="status" aria-live="polite"></p>
+    <details id="bloc-taille">
+      <summary>Vous connaissez la taille du tableau ? (facultatif)</summary>
+      <div>
+        <div class="taille">
+          <label for="hauteur">Hauteur en cm<input id="hauteur" type="text" inputmode="decimal" autocomplete="off" placeholder="ex. 50"></label>
+          <label for="largeur">Largeur en cm<input id="largeur" type="text" inputmode="decimal" autocomplete="off" placeholder="ex. 40"></label>
+        </div>
+        <p class="aide">Pour des proportions parfaites. Sans la taille, la page les calcule d'après la photo.</p>
+      </div>
+    </details>
+    <button class="btn" id="autre-1" type="button">Choisir une autre photo</button>
+  </section>
+
+  <section id="ecran-resultat" hidden>
+    <h2>Votre photo est prête</h2>
+    <p>Format 15&nbsp;×&nbsp;20&nbsp;cm, avec un bord blanc : au tirage, rien du tableau ne sera coupé. Le tableau est couché ou la tête en bas&nbsp;? Touchez «&nbsp;Tourner la photo&nbsp;».</p>
+    <img id="apercu" alt="La photo du tableau, prête à développer en 15 × 20 cm">
+    <p class="message" role="status" aria-live="polite"></p>
+    <button class="btn principal" id="enregistrer" type="button">Enregistrer la photo</button>
+    <p id="message-enregistrer" role="status" aria-live="polite"></p>
+    <p class="aide" id="aide-enregistrer">Si rien ne se passe : appuyez longtemps sur la photo ci-dessus, puis « Enregistrer l'image » (ou « Télécharger l'image »).</p>
+    <button class="btn" id="partager" type="button" hidden>Envoyer la photo (e-mail, WhatsApp…)</button>
+    <button class="btn" id="tourner" type="button">Tourner la photo</button>
+    <button class="btn" id="retoucher" type="button">Revenir aux coins</button>
+    <button class="btn" id="autre-2" type="button">Préparer une autre photo</button>
+    <div class="box info">
+      <strong class="titre">Pour faire développer</strong>
+      <ul>
+        <li>Demandez le format 15&nbsp;×&nbsp;20&nbsp;cm (papier mat ou brillant, comme vous préférez).</li>
+        <li>Si on vous propose une « optimisation automatique » ou une « amélioration » des couleurs, refusez-la (décochez la case) : on garde les vraies couleurs du tableau.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>Préparé pour vous par Mathias · octobre 2026. Les photos ne quittent pas votre téléphone ; l'hébergeur de cette page note l'adresse de connexion de chaque visite, comme la plupart des sites.</footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------- réglages
+  var MAX_TRAVAIL = 4000;          // côté le plus long de l'image de travail (mémoire des téléphones)
+  var COTE_DETECTION = 480;        // côté le plus long de l'image où l'on cherche le tableau
+  var SORTIE_PETIT = 1772;         // 15 cm à 300 points par pouce
+  var SORTIE_GRAND = 2362;         // 20 cm à 300 points par pouce
+  var MARGE = 54;                  // 4,6 mm à 300 points par pouce : bord blanc d'au moins 4 mm même après la compression JPEG
+  var QUALITE_JPEG = 0.92;
+
+  // ---------------------------------------------------------------- état
+  var travail = null;              // canvas de l'image de travail (orientée, réduite)
+  var coins = null;                // [hg, hd, bd, bg] en points de l'image de travail
+  var nomSource = "";
+  var vueEchelle = 1;              // pixels CSS de la vue par point de l'image de travail
+  var vueReduite = null;           // canvas : image déjà réduite à la taille de la vue
+  var actif = -1, doigt = null, decalage = null, redessinPrevu = false, coinClavier = 0;
+  var blobSortie = null, urlSortie = null, nomSortie = "", compteur = 0;
+  var quarts = 0;                  // quarts de tour demandés (sens des aiguilles d'une montre)
+  var enregistree = false;         // la photo prête a été enregistrée ou envoyée
+  var biaisVu = false;             // la dernière photo préparée était prise de biais
+  var largeurVue = 0;              // largeur de fenêtre pour laquelle la vue a été faite
+
+  var $ = function (id) { return document.getElementById(id); };
+  var vue = $("vue"), loupe = $("loupe"), loupeImg = $("loupe-img"), scene = $("scene");
+  var poignees = scene.querySelectorAll(".poignee");
+  var iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  // le message s'écrit dans l'écran affiché, sous son bouton principal (là où la personne regarde)
+  function message(texte, genre) {
+    var ecran = document.querySelector("section:not([hidden])"), m = ecran && ecran.querySelector(".message");
+    if (!m) return;
+    m.textContent = texte || "";
+    m.className = "message " + (genre || "");
+  }
+  function montrer(id) {
+    ["ecran-accueil", "ecran-coins", "ecran-resultat"].forEach(function (e) { $(e).hidden = (e !== id); });
+    Array.prototype.forEach.call(document.querySelectorAll(".message"), function (m) { m.textContent = ""; m.className = "message"; });
+    messageEnregistrer("");
+    document.querySelector(".hero").hidden = (id !== "ecran-accueil");   // la photo plus haut sur l'écran
+    window.scrollTo(0, 0);
+  }
+  function messageEnregistrer(texte, genre) {
+    var m = $("message-enregistrer");
+    m.textContent = texte || ""; m.className = genre || "";
+  }
+  function attendre() {   // laisse l'écran afficher le message ; minuterie de secours si la page n'est pas dessinée (arrière-plan)
+    return new Promise(function (ok) {
+      var fait = false;
+      function suite() { if (!fait) { fait = true; setTimeout(ok, 30); } }
+      requestAnimationFrame(suite); setTimeout(suite, 150);
+    });
+  }
+
+  // ---------------------------------------------------------------- ouverture de la photo
+  function ouvrirImage(fichier) {
+    return new Promise(function (ok, ko) {
+      var url = URL.createObjectURL(fichier);
+      var im = new Image();
+      im.onload = function () { ok({ image: im, url: url }); };
+      im.onerror = function () { URL.revokeObjectURL(url); ko(new Error("illisible")); };
+      im.src = url;  // le navigateur applique l'orientation enregistrée par le téléphone
+    });
+  }
+
+  async function choisir(fichier) {
+    if (!fichier) return;
+    message("Ouverture de la photo…");
+    var ouvert;
+    try { ouvert = await ouvrirImage(fichier); }
+    catch (e) {
+      message("Cette photo n'a pas pu être ouverte sur ce téléphone. Essayez une autre photo, ou reprenez le tableau en photo.", "erreur");
+      return;
+    }
+    try {
+      var im = ouvert.image, w = im.naturalWidth, h = im.naturalHeight;
+      var k = Math.min(1, MAX_TRAVAIL / Math.max(w, h));
+      var c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+      var x = c.getContext("2d", { willReadFrequently: true });   // l'image de travail est relue (bords, redressement)
+      x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+      x.drawImage(im, 0, 0, c.width, c.height);
+      if (travail) travail.width = 0;
+      travail = c;
+      quarts = 0; biaisVu = false; $("bloc-taille").open = false;
+      nomSource = (fichier.name || "").replace(/\.[^.]*$/, "");
+      await attendre();
+      var trouve = detecterTableau(travail);
+      if (trouve) trouve = affinerCoins(travail, trouve) || trouve;
+      if (trouve) {
+        coins = trouve;
+        $("consigne-coins").textContent = "Placez les 4 ronds exactement sur les 4 coins du tableau. Faites glisser un rond avec le doigt : une loupe vous montre le coin.";
+        message("");
+      } else {
+        var mx = travail.width * 0.15, my = travail.height * 0.15;
+        coins = [{x: mx, y: my}, {x: travail.width - mx, y: my},
+                 {x: travail.width - mx, y: travail.height - my}, {x: mx, y: travail.height - my}];
+        $("consigne-coins").textContent = "La page n'a pas trouvé le tableau toute seule. Faites glisser chacun des 4 ronds sur un coin du tableau : une loupe vous montre le coin.";
+        message("");
+      }
+      $("hauteur").value = ""; $("largeur").value = "";
+      montrer("ecran-coins");
+      preparerVue();
+    } catch (e) {
+      message("Cette photo est trop lourde pour ce téléphone. Essayez une autre photo.", "erreur");
+    } finally {
+      URL.revokeObjectURL(ouvert.url);
+    }
+  }
+
+  $("choix").addEventListener("change", function (ev) {
+    var f = ev.target.files && ev.target.files[0];
+    ev.target.value = "";   // pour pouvoir rechoisir la même photo
+    choisir(f);
+  });
+
+  // ---------------------------------------------------------------- recherche du tableau
+  // Même méthode que le script de retouche sur ordinateur, sans bibliothèque.
+  var LIN = (function () {
+    var t = new Float32Array(256);
+    for (var i = 0; i < 256; i++) { var c = i / 255; t[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    return t;
+  })();
+  function fLab(t) { return t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; }
+
+  function mediane(tab) {
+    var a = Array.prototype.slice.call(tab).sort(function (p, q) { return p - q; });
+    var m = a.length >> 1;
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  }
+
+  function flouBoite(src, w, h, r) {   // flou en boîte séparable ; trois passes ≈ flou gaussien
+    var tmp = new Float32Array(w * h), out = new Float32Array(w * h), x, y, s, n, i;
+    for (y = 0; y < h; y++) {
+      for (x = 0; x < w; x++) {
+        s = 0; n = 0;
+        for (i = Math.max(0, x - r); i <= Math.min(w - 1, x + r); i++) { s += src[y * w + i]; n++; }
+        tmp[y * w + x] = s / n;
+      }
+    }
+    for (x = 0; x < w; x++) {
+      for (y = 0; y < h; y++) {
+        s = 0; n = 0;
+        for (i = Math.max(0, y - r); i <= Math.min(h - 1, y + r); i++) { s += tmp[i * w + x]; n++; }
+        out[y * w + x] = s / n;
+      }
+    }
+    return out;
+  }
+
+  function otsu(d8) {
+    var hist = new Float64Array(256), n = d8.length, i;
+    for (i = 0; i < n; i++) hist[d8[i]]++;
+    var somme = 0; for (i = 0; i < 256; i++) somme += i * hist[i];
+    var sB = 0, wB = 0, meilleur = 0, seuil = 0;
+    for (i = 0; i < 256; i++) {
+      wB += hist[i]; if (!wB) continue;
+      var wF = n - wB; if (!wF) break;
+      sB += i * hist[i];
+      var mB = sB / wB, mF = (somme - sB) / wF, v = wB * wF * (mB - mF) * (mB - mF);
+      if (v > meilleur) { meilleur = v; seuil = i; }
+    }
+    return seuil;
+  }
+
+  // dilatation (garder = 1) ou érosion (garder = 0) d'un masque binaire par un carré de côté 2r+1 ;
+  // les points hors de l'image ne comptent pas (comme OpenCV)
+  function morpho(m, w, h, r, dilater) {
+    var tmp = new Uint8Array(w * h), out = new Uint8Array(w * h), pre = new Int32Array(Math.max(w, h) + 1), x, y, lo, hi, n;
+    for (y = 0; y < h; y++) {
+      pre[0] = 0; for (x = 0; x < w; x++) pre[x + 1] = pre[x] + m[y * w + x];
+      for (x = 0; x < w; x++) {
+        lo = Math.max(0, x - r); hi = Math.min(w - 1, x + r); n = pre[hi + 1] - pre[lo];
+        tmp[y * w + x] = dilater ? (n > 0 ? 1 : 0) : (n === hi - lo + 1 ? 1 : 0);
+      }
+    }
+    for (x = 0; x < w; x++) {
+      pre[0] = 0; for (y = 0; y < h; y++) pre[y + 1] = pre[y] + tmp[y * w + x];
+      for (y = 0; y < h; y++) {
+        lo = Math.max(0, y - r); hi = Math.min(h - 1, y + r); n = pre[hi + 1] - pre[lo];
+        out[y * w + x] = dilater ? (n > 0 ? 1 : 0) : (n === hi - lo + 1 ? 1 : 0);
+      }
+    }
+    return out;
+  }
+
+  function plusGrandeZone(m, w, h) {   // composante 8-connexe la plus grande
+    var etiq = new Int32Array(w * h), pile = new Int32Array(w * h), meilleure = 0, taille = 0, num = 0, i;
+    for (i = 0; i < w * h; i++) {
+      if (!m[i] || etiq[i]) continue;
+      num++; var haut = 0, n = 0; pile[haut++] = i; etiq[i] = num;
+      while (haut) {
+        var p = pile[--haut]; n++;
+        var px = p % w, py = (p - px) / w;
+        for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+          var qx = px + dx, qy = py + dy;
+          if (qx < 0 || qy < 0 || qx >= w || qy >= h) continue;
+          var q = qy * w + qx;
+          if (m[q] && !etiq[q]) { etiq[q] = num; pile[haut++] = q; }
+        }
+      }
+      if (n > taille) { taille = n; meilleure = num; }
+    }
+    if (!meilleure) return null;
+    var pts = [];
+    for (var y = 0; y < h; y++) {
+      var g = -1, d = -1;
+      for (var x = 0; x < w; x++) if (etiq[y * w + x] === meilleure) { if (g < 0) g = x; d = x; }
+      if (g >= 0) { pts.push({x: g, y: y}, {x: d + 1, y: y}, {x: g, y: y + 1}, {x: d + 1, y: y + 1}); }
+    }
+    return pts;
+  }
+
+  function enveloppe(pts) {   // enveloppe convexe (chaîne monotone)
+    pts = pts.slice().sort(function (a, b) { return a.x - b.x || a.y - b.y; });
+    function croix(o, a, b) { return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x); }
+    var bas = [], haut = [], i;
+    for (i = 0; i < pts.length; i++) { while (bas.length >= 2 && croix(bas[bas.length - 2], bas[bas.length - 1], pts[i]) <= 0) bas.pop(); bas.push(pts[i]); }
+    for (i = pts.length - 1; i >= 0; i--) { while (haut.length >= 2 && croix(haut[haut.length - 2], haut[haut.length - 1], pts[i]) <= 0) haut.pop(); haut.push(pts[i]); }
+    haut.pop(); bas.pop();
+    return bas.concat(haut);
+  }
+
+  function coinsExtremes(env) {   // haut-gauche, haut-droit, bas-droit, bas-gauche
+    var hg = env[0], hd = env[0], bd = env[0], bg = env[0];
+    env.forEach(function (p) {
+      if (p.x + p.y < hg.x + hg.y) hg = p;
+      if (p.x + p.y > bd.x + bd.y) bd = p;
+      if (p.x - p.y > hd.x - hd.y) hd = p;
+      if (p.x - p.y < bg.x - bg.y) bg = p;
+    });
+    return [hg, hd, bd, bg];
+  }
+
+  function aire(q) {
+    var s = 0;
+    for (var i = 0; i < 4; i++) { var a = q[i], b = q[(i + 1) % 4]; s += a.x * b.y - b.x * a.y; }
+    return Math.abs(s) / 2;
+  }
+  function dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+
+  // même contrôle que le script de retouche sur ordinateur ; renvoie null si le quadrilatère est vraisemblable
+  function invraisemblable(q, w, h) {
+    for (var i = 0; i < 4; i++) {
+      if (q[i].x < 0.01 * w || q[i].y < 0.01 * h || q[i].x > 0.99 * w || q[i].y > 0.99 * h) return "touche le bord";
+    }
+    var a = aire(q);
+    if (!(a > 0.12 * w * h && a < 0.90 * w * h)) return "aire";
+    var c = [dist(q[0], q[1]), dist(q[1], q[2]), dist(q[2], q[3]), dist(q[3], q[0])];
+    if (!(c[0] / c[2] > 0.75 && c[0] / c[2] < 1.33 && c[1] / c[3] > 0.75 && c[1] / c[3] < 1.33)) return "côtés";
+    for (i = 0; i < 4; i++) {
+      var p = q[i], u = q[(i + 3) % 4], v = q[(i + 1) % 4];
+      var ax = u.x - p.x, ay = u.y - p.y, bx = v.x - p.x, by = v.y - p.y;
+      var ang = Math.acos((ax * bx + ay * by) / (Math.hypot(ax, ay) * Math.hypot(bx, by))) * 180 / Math.PI;
+      if (!(ang > 65 && ang < 115)) return "angle";
+    }
+    return null;
+  }
+
+  function detecterTableau(source) {
+    var k = COTE_DETECTION / Math.max(source.width, source.height);
+    var w = Math.max(8, Math.round(source.width * k)), h = Math.max(8, Math.round(source.height * k));
+    var c = document.createElement("canvas"); c.width = w; c.height = h;
+    var x = c.getContext("2d", { willReadFrequently: true });
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+    x.drawImage(source, 0, 0, w, h);
+    var px = x.getImageData(0, 0, w, h).data, n = w * h, i;
+    var L = new Float32Array(n), A = new Float32Array(n), B = new Float32Array(n);
+    for (i = 0; i < n; i++) {
+      var r = LIN[px[4 * i]], g = LIN[px[4 * i + 1]], b = LIN[px[4 * i + 2]];
+      var X = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+      var Y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      var Z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+      var fx = fLab(X), fy = fLab(Y), fz = fLab(Z);
+      L[i] = 116 * fy - 16; A[i] = 500 * (fx - fy); B[i] = 200 * (fy - fz);
+    }
+    // couleur du mur : médiane d'une bande de 3 % au bord de l'image
+    var bande = Math.max(3, Math.round(0.03 * Math.min(w, h))), bl = [], ba = [], bb = [];
+    for (var y = 0; y < h; y++) for (var xx = 0; xx < w; xx++) {
+      if (xx < bande || yy(y) || xx >= w - bande) { i = y * w + xx; bl.push(L[i]); ba.push(A[i]); bb.push(B[i]); }
+    }
+    function yy(v) { return v < bande || v >= h - bande; }
+    var mL = mediane(bl), mA = mediane(ba), mB = mediane(bb);
+    var d = new Float32Array(n);
+    for (i = 0; i < n; i++) d[i] = Math.hypot(L[i] - mL, A[i] - mA, B[i] - mB);
+    d = flouBoite(flouBoite(flouBoite(d, w, h, 1), w, h, 1), w, h, 1);
+    var max = 1e-6; for (i = 0; i < n; i++) if (d[i] > max) max = d[i];
+    var d8 = new Uint8Array(n); for (i = 0; i < n; i++) d8[i] = Math.min(255, Math.round(d[i] * 255 / max));
+    var seuils = [otsu(d8) / 255, 0.08, 0.12, 0.16, 0.20, 0.25, 0.30, 0.40]
+      .filter(function (s, j, t) { return t.indexOf(s) === j; }).sort(function (p, q) { return p - q; });
+    var rFerme = Math.max(2, Math.round(12 * w / COTE_DETECTION * Math.max(w, h) / w)), rOuvre = Math.max(1, Math.round(rFerme / 3.4));
+    for (var s = 0; s < seuils.length; s++) {
+      var m = new Uint8Array(n), lim = seuils[s] * 255;
+      for (i = 0; i < n; i++) m[i] = d8[i] > lim ? 1 : 0;
+      m = morpho(morpho(m, w, h, rFerme, true), w, h, rFerme, false);        // fermeture
+      m = morpho(morpho(m, w, h, rOuvre, false), w, h, rOuvre, true);        // ouverture
+      var pts = plusGrandeZone(m, w, h);
+      if (!pts || pts.length < 8) continue;
+      var q = coinsExtremes(enveloppe(pts));
+      if (!invraisemblable(q, w, h)) {
+        return q.map(function (p) { return { x: p.x / k, y: p.y / k }; });
+      }
+    }
+    return null;
+  }
+
+  // ---------------------------------------------------------------- affinage des coins en pleine résolution
+  // La recherche se fait sur une image de 480 points : un coin peut être décalé de quelques points, et l'ombre
+  // du tableau sur le mur est prise avec lui. Sur chaque côté, 64 coupes perpendiculaires ; sur chacune, le bord
+  // retenu est le plus extérieur des forts changements de couleur (au moins 60 % du plus fort de la coupe : dans
+  // le doute, on garde de la toile plutôt que d'en couper) ; si ce bord est celui d'une ombre (juste à l'intérieur :
+  // le mur assombri, uni, de même teinte que dehors), on passe au fort changement suivant vers l'intérieur.
+  // Chaque coin est le croisement de deux droites ajustées sur les seules coupes proches de lui (sur une photo, le
+  // bord d'une toile n'est jamais parfaitement droit). Trop peu de coupes d'accord : ce côté garde sa droite
+  // d'origine près du coin ; un coin qui bouge trop ou un quadrilatère invraisemblable : rien ne change.
+  function zone(prof, a, b) {   // couleur moyenne, luminance et écart type de la luminance des pas a à b d'une coupe
+    var r = 0, g = 0, bl = 0, l2 = 0, n = 0;
+    for (var j = Math.max(0, a); j <= Math.min(prof.length - 1, b); j++) {
+      var p = prof[j]; if (!p) continue;
+      r += p[0]; g += p[1]; bl += p[2]; l2 += p[3]; n++;
+    }
+    if (n < 4) return null;
+    r /= n; g /= n; bl /= n; l2 /= n;
+    var lum = 0.299 * r + 0.587 * g + 0.114 * bl;
+    return { r: r, g: g, b: bl, somme: r + g + bl, lum: lum, ecart: Math.sqrt(Math.max(0, l2 - lum * lum)) };
+  }
+  function bordOmbre(prof, e) {   // dedans : mur plus sombre, uni, de même teinte que dehors
+    var dedans = zone(prof, e - 14, e - 3), dehors = zone(prof, e + 3, e + 14);
+    if (!dedans || !dehors || dedans.somme < 30 || dehors.somme < 30) return false;
+    var teinte = Math.abs(dedans.r / dedans.somme - dehors.r / dehors.somme) + Math.abs(dedans.g / dedans.somme - dehors.g / dehors.somme) +
+                 Math.abs(dedans.b / dedans.somme - dehors.b / dehors.somme);
+    return teinte < 0.04 && dedans.lum < 0.97 * dehors.lum && dedans.lum > 0.35 * dehors.lum && dedans.ecart < Math.max(8, 1.5 * dehors.ecart);
+  }
+  function affinerCoins(source, q) {
+    // ±4 % du grand côté : assez pour passer au-delà d'une ombre portée sur le mur (jusqu'à ≈ 110 points sur ces photos)
+    var R = Math.max(12, Math.round(0.04 * Math.max(source.width, source.height)));
+    var NB = 64, TAN = 3, xs = source.getContext("2d", { willReadFrequently: true }), cotes = [];
+    for (var cote = 0; cote < 4; cote++) {
+      var A = q[cote], B = q[(cote + 1) % 4], lx = B.x - A.x, ly = B.y - A.y, L = Math.hypot(lx, ly);
+      if (L < 6 * R) return null;
+      var tx = lx / L, ty = ly / L, nx = ty, ny = -tx;   // normale vers l'extérieur (coins dans le sens des aiguilles d'une montre)
+      var x0 = Math.max(0, Math.floor(Math.min(A.x, B.x) - R - TAN - 2)), y0 = Math.max(0, Math.floor(Math.min(A.y, B.y) - R - TAN - 2));
+      var x1 = Math.min(source.width, Math.ceil(Math.max(A.x, B.x) + R + TAN + 2)), y1 = Math.min(source.height, Math.ceil(Math.max(A.y, B.y) + R + TAN + 2));
+      var bw = x1 - x0, bh = y1 - y0;
+      if (bw < 2 || bh < 2) return null;
+      var d = xs.getImageData(x0, y0, bw, bh).data, pts = [], k, s, t, j;
+      for (k = 0; k < NB; k++) {
+        var u = (0.03 + 0.94 * k / (NB - 1)) * L;
+        if (u < 2 * R || u > L - 2 * R) continue;   // trop près d'un coin : la coupe croiserait l'autre côté
+        var px = A.x + u * tx, py = A.y + u * ty, prof = [];
+        for (s = -R; s <= R; s++) {   // couleur moyenne sur 7 points le long du côté, pour chaque pas vers l'extérieur
+          var r = 0, g = 0, b = 0, l2 = 0, n = 0;
+          for (t = -TAN; t <= TAN; t++) {
+            var X = Math.round(px + s * nx + t * tx) - x0, Y = Math.round(py + s * ny + t * ty) - y0;
+            if (X < 0 || Y < 0 || X >= bw || Y >= bh) continue;
+            var i = (Y * bw + X) * 4, lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            r += d[i]; g += d[i + 1]; b += d[i + 2]; l2 += lum * lum; n++;
+          }
+          prof.push(n ? [r / n, g / n, b / n, l2 / n] : null);
+        }
+        var grads = [], fort = 0;
+        for (j = 1; j < prof.length - 1; j++) {
+          var a = prof[j - 1], c = prof[j + 1];
+          grads[j] = a && c ? Math.hypot(c[0] - a[0], c[1] - a[1], c[2] - a[2]) : 0;
+          if (grads[j] > fort) fort = grads[j];
+        }
+        if (fort <= 24) continue;
+        var e = -1;
+        for (j = prof.length - 2; j >= 1; j--) if (grads[j] >= 0.6 * fort) { e = j; break; }
+        for (var saut = 0; saut < 3 && e > 0 && bordOmbre(prof, e); saut++) {   // bord d'une ombre : bord fort suivant vers l'intérieur
+          var e2 = -1;
+          for (j = e - 3; j >= 2; j--) if (grads[j] >= 0.35 * fort && grads[j] >= grads[j - 1] && grads[j] >= grads[j + 1]) { e2 = j; break; }
+          e = e2;
+        }
+        if (e > 0 && !bordOmbre(prof, e)) pts.push({ w: u, s: e - R });
+      }
+      cotes.push({ A: A, L: L, tx: tx, ty: ty, nx: nx, ny: ny, pts: pts });
+    }
+    // droite s = a + b·w près d'un bout du côté : pente médiane des paires, décalage médian, puis moindres carrés
+    // sur les coupes à 2,5 points près ; sans accord, la droite d'origine du côté
+    function droitePres(c, debut) {
+      var sel = c.pts.filter(function (p) { return debut ? p.w <= 0.35 * c.L : p.w >= 0.65 * c.L; }), la = 0, lb = 0;
+      if (sel.length >= 6) {
+        var pentes = [], i, j;
+        for (i = 0; i < sel.length; i++) for (j = i + 1; j < sel.length; j++) pentes.push((sel[j].s - sel[i].s) / (sel[j].w - sel[i].w));
+        var pb = mediane(pentes), pa = mediane(sel.map(function (p) { return p.s - pb * p.w; }));
+        var bons = sel.filter(function (p) { return Math.abs(p.s - (pa + pb * p.w)) <= 2.5; });
+        if (bons.length >= Math.max(6, 0.6 * sel.length)) {
+          var sw = 0, ss = 0, sww = 0, sws = 0, m = bons.length;
+          bons.forEach(function (p) { sw += p.w; ss += p.s; sww += p.w * p.w; sws += p.w * p.s; });
+          var den = m * sww - sw * sw;
+          lb = Math.abs(den) > 1e-9 ? (m * sws - sw * ss) / den : 0; la = (ss - lb * sw) / m;
+        }
+      }
+      return { x: c.A.x + la * c.nx, y: c.A.y + la * c.ny, dx: c.tx + lb * c.nx, dy: c.ty + lb * c.ny };
+    }
+    var nq = [];
+    for (var ic = 0; ic < 4; ic++) {   // coin ic = croisement de la fin du côté qui arrive et du début du côté qui part
+      var D1 = droitePres(cotes[(ic + 3) % 4], false), D2 = droitePres(cotes[ic], true), cr = D1.dx * D2.dy - D1.dy * D2.dx;
+      if (Math.abs(cr) < 1e-9) return null;
+      var lam = ((D2.x - D1.x) * D2.dy - (D2.y - D1.y) * D2.dx) / cr;
+      var p2 = { x: D1.x + lam * D1.dx, y: D1.y + lam * D1.dy };
+      if (!isFinite(p2.x) || !isFinite(p2.y) || dist(p2, q[ic]) > 1.5 * R) return null;
+      nq.push(p2);
+    }
+    return invraisemblable(nq, source.width, source.height) ? null : nq;
+  }
+
+  // ---------------------------------------------------------------- vue et coins
+  function preparerVue() {
+    var scene = $("scene");
+    largeurVue = window.innerWidth;
+    var largeurDispo = scene.clientWidth || 320;
+    var hauteurDispo = Math.max(220, Math.round(window.innerHeight * 0.5));   // le bouton « C'est bon » reste visible dessous
+    vueEchelle = Math.min(largeurDispo / travail.width, hauteurDispo / travail.height);
+    var cssW = Math.round(travail.width * vueEchelle), cssH = Math.round(travail.height * vueEchelle);
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    vue.style.width = cssW + "px"; vue.style.height = cssH + "px";
+    vue.width = Math.round(cssW * dpr); vue.height = Math.round(cssH * dpr);
+    if (vueReduite) vueReduite.width = 0;
+    vueReduite = document.createElement("canvas");
+    vueReduite.width = vue.width; vueReduite.height = vue.height;
+    var x = vueReduite.getContext("2d");
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+    x.drawImage(travail, 0, 0, vue.width, vue.height);
+    dessinerVue();
+  }
+
+  function dessinerVue() {
+    redessinPrevu = false;
+    if (!travail || !coins) return;
+    var x = vue.getContext("2d"), dpr = vue.width / parseFloat(vue.style.width), e = vueEchelle * dpr;
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.drawImage(vueReduite, 0, 0);
+    // voile autour du tableau
+    x.save();
+    x.beginPath(); x.rect(0, 0, vue.width, vue.height);
+    x.moveTo(coins[0].x * e, coins[0].y * e);
+    for (var i = 3; i >= 1; i--) x.lineTo(coins[i].x * e, coins[i].y * e);
+    x.closePath();
+    x.fillStyle = "rgba(0,0,0,0.38)"; x.fill("evenodd");
+    x.restore();
+    // contour
+    x.beginPath();
+    for (i = 0; i < 4; i++) { var p = coins[i]; if (i) x.lineTo(p.x * e, p.y * e); else x.moveTo(p.x * e, p.y * e); }
+    x.closePath();
+    x.lineWidth = 4 * dpr; x.strokeStyle = "rgba(255,255,255,0.95)"; x.stroke();
+    x.lineWidth = 2 * dpr; x.strokeStyle = "#B4405E"; x.stroke();
+    // ronds (le coin choisi au clavier est dessiné plus gros)
+    var auClavier = (document.activeElement === vue && actif < 0) ? coinClavier : -1;
+    for (i = 0; i < 4; i++) {
+      var c = coins[i], r = (i === actif || i === auClavier ? 17 : 13) * dpr;
+      x.beginPath(); x.arc(c.x * e, c.y * e, r, 0, Math.PI * 2);
+      x.fillStyle = "rgba(255,255,255,0.35)"; x.fill();
+      x.lineWidth = (i === auClavier ? 6 : 4) * dpr; x.strokeStyle = "#B4405E"; x.stroke();
+      x.beginPath(); x.arc(c.x * e, c.y * e, 2.5 * dpr, 0, Math.PI * 2);
+      x.fillStyle = "#B4405E"; x.fill();
+      // poignée invisible posée sur le rond : seul endroit de la photo qui ne fait pas défiler la page
+      poignees[i].style.left = (vue.offsetLeft + c.x * vueEchelle) + "px";
+      poignees[i].style.top = (vue.offsetTop + c.y * vueEchelle) + "px";
+    }
+    if (actif >= 0) dessinerLoupe();
+  }
+  function demanderDessin() { if (!redessinPrevu) { redessinPrevu = true; requestAnimationFrame(dessinerVue); } }
+
+  function dessinerLoupe() {
+    var c = coins[actif], x = loupeImg.getContext("2d"), t = loupeImg.width;
+    var zone = (t / 3) / (vueEchelle * (vue.width / parseFloat(vue.style.width)));   // loupe ≈ 3 fois la vue
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+    x.fillStyle = "#000"; x.fillRect(0, 0, t, t);
+    x.drawImage(travail, c.x - zone / 2, c.y - zone / 2, zone, zone, 0, 0, t, t);
+    x.strokeStyle = "#fff"; x.lineWidth = 5;
+    x.beginPath(); x.moveTo(t / 2, 0); x.lineTo(t / 2, t); x.moveTo(0, t / 2); x.lineTo(t, t / 2); x.stroke();
+    x.strokeStyle = "#B4405E"; x.lineWidth = 2; x.stroke();
+  }
+
+  function pointDansImage(ev) {
+    var r = vue.getBoundingClientRect();
+    return { x: (ev.clientX - r.left) / vueEchelle, y: (ev.clientY - r.top) / vueEchelle, cx: ev.clientX - r.left, cy: ev.clientY - r.top, w: r.width };
+  }
+  function borner(p) {
+    return { x: Math.min(travail.width, Math.max(0, p.x)), y: Math.min(travail.height, Math.max(0, p.y)) };
+  }
+
+  // un seul doigt à la fois : un second doigt (ou la paume) est ignoré
+  function prendre(ev, id) {
+    if (!coins || actif >= 0) return false;
+    var p = pointDansImage(ev), proche = -1, meilleur = 46;   // 46 pixels d'écran autour d'un rond
+    for (var i = 0; i < 4; i++) {
+      var dd = Math.hypot((coins[i].x - p.x) * vueEchelle, (coins[i].y - p.y) * vueEchelle);
+      if (dd < meilleur) { meilleur = dd; proche = i; }
+    }
+    if (proche < 0) return false;
+    actif = proche; coinClavier = proche; doigt = id;
+    decalage = { x: coins[proche].x - p.x, y: coins[proche].y - p.y };   // le rond suit le doigt sans sauter
+    loupe.className = "loupe " + (p.cx < p.w / 2 ? "droite" : "gauche");
+    loupe.hidden = false;
+    demanderDessin();
+    return true;
+  }
+  function glisser(ev, id) {
+    if (actif < 0 || id !== doigt) return false;
+    var p = pointDansImage(ev);
+    coins[actif] = borner({ x: p.x + decalage.x, y: p.y + decalage.y });
+    loupe.className = "loupe " + (p.cx < p.w / 2 ? "droite" : "gauche");
+    demanderDessin();
+    return true;
+  }
+  function lacher(id) { if (actif >= 0 && id === doigt) { actif = -1; doigt = null; loupe.hidden = true; demanderDessin(); } }
+  if (window.PointerEvent) {
+    scene.addEventListener("pointerdown", function (ev) {
+      if (!prendre(ev, ev.pointerId)) return;
+      ev.preventDefault();
+      try { scene.setPointerCapture(ev.pointerId); } catch (e) {}
+    });
+    scene.addEventListener("pointermove", function (ev) { if (glisser(ev, ev.pointerId)) ev.preventDefault(); });
+    scene.addEventListener("pointerup", function (ev) { lacher(ev.pointerId); });
+    scene.addEventListener("pointercancel", function (ev) { lacher(ev.pointerId); });
+  } else {   // téléphones anciens (iOS 12 et avant) : événements tactiles
+    scene.addEventListener("touchstart", function (ev) {
+      var t = ev.changedTouches[0];
+      if (prendre(t, t.identifier)) ev.preventDefault();
+    }, { passive: false });
+    scene.addEventListener("touchmove", function (ev) {
+      for (var i = 0; i < ev.changedTouches.length; i++) {
+        var t = ev.changedTouches[i];
+        if (glisser(t, t.identifier)) ev.preventDefault();
+      }
+    }, { passive: false });
+    var finTouche = function (ev) { for (var i = 0; i < ev.changedTouches.length; i++) lacher(ev.changedTouches[i].identifier); };
+    scene.addEventListener("touchend", finTouche);
+    scene.addEventListener("touchcancel", finTouche);
+  }
+  vue.addEventListener("focus", demanderDessin);
+  vue.addEventListener("blur", demanderDessin);
+  vue.addEventListener("keydown", function (ev) {   // clavier : 1 à 4 choisissent un coin, flèches le déplacent
+    if (!coins) return;
+    if (/^[1-4]$/.test(ev.key)) { coinClavier = +ev.key - 1; ev.preventDefault(); return; }
+    var pas = (ev.shiftKey ? 10 : 1) / vueEchelle, d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[ev.key];
+    if (!d) return;
+    ev.preventDefault();
+    coins[coinClavier] = borner({ x: coins[coinClavier].x + d[0] * pas, y: coins[coinClavier].y + d[1] * pas });
+    demanderDessin();
+  });
+  // seulement si la largeur change (tour du téléphone) : la barre d'adresse qui se replie et le clavier
+  // changent la hauteur à chaque instant, et la vue ne doit pas sauter sous le doigt
+  window.addEventListener("resize", function () {
+    if (travail && !$("ecran-coins").hidden && actif < 0 && window.innerWidth !== largeurVue) preparerVue();
+  });
+
+  // ---------------------------------------------------------------- redressement
+  // homographie qui envoie le carré unité sur le quadrilatère (Heckbert)
+  function homographie(q) {
+    var x0 = q[0].x, y0 = q[0].y, x1 = q[1].x, y1 = q[1].y, x2 = q[2].x, y2 = q[2].y, x3 = q[3].x, y3 = q[3].y;
+    var sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3, g, h;
+    if (Math.abs(sx) < 1e-9 && Math.abs(sy) < 1e-9) { g = 0; h = 0; }
+    else {
+      var dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2, den = dx1 * dy2 - dx2 * dy1;
+      g = (sx * dy2 - dx2 * sy) / den; h = (dx1 * sy - sx * dy1) / den;
+    }
+    return { a: x1 - x0 + g * x1, b: x3 - x0 + h * x3, c: x0, d: y1 - y0 + g * y1, e: y3 - y0 + h * y3, f: y0, g: g, h: h };
+  }
+
+  function nombre(v) { var n = parseFloat(String(v).replace(",", ".").replace(/\s/g, "")); return isFinite(n) ? n : NaN; }
+
+  // largeur ÷ hauteur d'un rectangle photographié de biais (méthode du tableau blanc, Zhang et He) ;
+  // focale supposée : objectif principal d'un téléphone (24 à 28 mm en équivalent 24 × 36), centre au milieu.
+  // Essai sur tableaux simulés (focales 0,62 à 0,82, bruit de 3 points) : écart ≤ 3,6 % jusqu'à 20° de biais, ≤ 10 % à 40°
+  // (sans correction : 28 %) ; une focale estimée d'après les coins faisait pire (31 %).
+  function proportionPerspective(q, W, H) {
+    var u0 = W / 2, v0 = H / 2, f = 0.75 * Math.max(W, H);
+    var m1 = [q[0].x, q[0].y, 1], m2 = [q[1].x, q[1].y, 1], m3 = [q[3].x, q[3].y, 1], m4 = [q[2].x, q[2].y, 1];
+    function vect(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+    function scal(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+    var c14 = vect(m1, m4), k2 = scal(c14, m3) / scal(vect(m2, m4), m3), k3 = scal(c14, m2) / scal(vect(m3, m4), m2);
+    var n2 = [k2 * m2[0] - m1[0], k2 * m2[1] - m1[1], k2 - 1], n3 = [k3 * m3[0] - m1[0], k3 * m3[1] - m1[1], k3 - 1];
+    function forme(n) { var a = (n[0] - u0 * n[2]) / f, b = (n[1] - v0 * n[2]) / f; return a * a + b * b + n[2] * n[2]; }
+    var r = Math.sqrt(forme(n2) / forme(n3));
+    return isFinite(r) && r > 0 ? r : NaN;
+  }
+
+  function proportion(q) {   // largeur ÷ hauteur du tableau, q = [hg, hd, bd, bg]
+    var lw = (dist(q[0], q[1]) + dist(q[3], q[2])) / 2;
+    var lh = (dist(q[0], q[3]) + dist(q[1], q[2])) / 2;
+    var naive = lw / lh, corrigee = proportionPerspective(q, travail.width, travail.height);
+    var estimee = isFinite(corrigee) && Math.abs(Math.log(corrigee / naive)) < Math.log(1.6) ? corrigee : naive;
+    var hc = nombre($("hauteur").value), lc = nombre($("largeur").value);
+    if (hc >= 5 && hc <= 400 && lc >= 5 && lc <= 400) {
+      var donnee = lc / hc;
+      return { valeur: donnee, ecart: Math.abs(Math.log(donnee / estimee)) > Math.log(1.25) };
+    }
+    return { valeur: estimee, ecart: false, ignoree: ($("hauteur").value + $("largeur").value).trim() !== "",
+             biais: Math.abs(estimee / naive - 1) > 0.08 };
+  }
+
+  // les 4 ronds remis dans l'ordre (sens des aiguilles d'une montre, en partant du coin en haut à gauche),
+  // puis refusés s'ils ne forment pas un quadrilatère convexe et ouvert (sinon : photo en miroir, tordue ou repliée)
+  function ordonnerCoins(q) {
+    var cx = (q[0].x + q[1].x + q[2].x + q[3].x) / 4, cy = (q[0].y + q[1].y + q[2].y + q[3].y) / 4;
+    var o = q.map(function (c) { return { x: c.x, y: c.y, a: Math.atan2(c.y - cy, c.x - cx) }; })
+             .sort(function (a, b) { return a.a - b.a; });
+    var d = 0;
+    for (var i = 1; i < 4; i++) if (o[i].x + o[i].y < o[d].x + o[d].y) d = i;
+    return [0, 1, 2, 3].map(function (k) { var c = o[(d + k) % 4]; return { x: c.x, y: c.y }; });
+  }
+  function formeValable(q, W, H) {
+    var aire = 0, signe = 0;
+    for (var i = 0; i < 4; i++) {
+      var a = q[(i + 3) % 4], b = q[i], c = q[(i + 1) % 4];
+      var ux = a.x - b.x, uy = a.y - b.y, vx = c.x - b.x, vy = c.y - b.y;
+      var lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+      if (lu < 1 || lv < 1) return false;
+      var croix = vx * uy - vy * ux, angle = Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy) / (lu * lv)))) * 180 / Math.PI;
+      if (angle < 30 || angle > 150) return false;
+      var s = croix > 0 ? 1 : -1;
+      if (signe && s !== signe) return false;
+      signe = s;
+      aire += b.x * c.y - c.x * b.y;
+    }
+    return Math.abs(aire) / 2 > 0.01 * W * H;
+  }
+
+  var BOUTONS_PENDANT = ["preparer", "autre-1", "enregistrer", "partager", "tourner", "retoucher", "autre-2"];
+  async function preparer(bouton) {
+    if (!coins) return;
+    var ordonnes = ordonnerCoins(coins);
+    if (!formeValable(ordonnes, travail.width, travail.height)) {
+      montrer("ecran-coins"); preparerVue();
+      message("Les 4 ronds ne forment pas un rectangle : placez chaque rond sur un coin du tableau.", "erreur");
+      return;
+    }
+    coins = ordonnes;   // ronds croisés ou échangés : remis dans l'ordre, la photo ne sort jamais en miroir
+    var photo = travail;
+    bouton = bouton || $("preparer");
+    var libelle = bouton.textContent;
+    BOUTONS_PENDANT.forEach(function (id) { $(id).disabled = true; });
+    bouton.textContent = "Préparation… patientez";   // sur le bouton touché : rien ne bouge sous le doigt
+    await attendre();
+    try {
+      // quart de tour demandé : le coin qui ira en haut à gauche change (sens des aiguilles d'une montre)
+      var q = [0, 1, 2, 3].map(function (i) { var c = coins[(i - quarts + 4) % 4]; return { x: c.x, y: c.y }; });
+      var p = proportion(q);
+      var paysage = p.valeur > 1;
+      var OW = paysage ? SORTIE_GRAND : SORTIE_PETIT, OH = paysage ? SORTIE_PETIT : SORTIE_GRAND;
+      var iw = OW - 2 * MARGE, ih = OH - 2 * MARGE, pw, ph;
+      if (p.valeur > iw / ih) { pw = iw; ph = Math.round(iw / p.valeur); } else { ph = ih; pw = Math.round(ih * p.valeur); }
+      var ox = Math.round((OW - pw) / 2), oy = Math.round((OH - ph) / 2);
+
+      // si le tableau est bien plus grand dans la photo que dans la sortie, on réduit d'abord (plus net)
+      var src = travail;
+      var lw = Math.max(dist(q[0], q[1]), dist(q[3], q[2])), lh = Math.max(dist(q[0], q[3]), dist(q[1], q[2]));
+      var r = Math.max(lw / pw, lh / ph), reduit = null;
+      // moins d'environ 200 points par pouce réels (seuil des laboratoires pour un 15 × 20 : 1 200 × 1 600 points)
+      var petite = r < 0.68;
+      if (r > 1.3) {
+        var f = 1.15 / r;
+        reduit = document.createElement("canvas");
+        reduit.width = Math.max(1, Math.round(travail.width * f)); reduit.height = Math.max(1, Math.round(travail.height * f));
+        var xr = reduit.getContext("2d"); xr.imageSmoothingEnabled = true; xr.imageSmoothingQuality = "high";
+        xr.drawImage(travail, 0, 0, reduit.width, reduit.height);
+        q = q.map(function (c) { return { x: c.x * reduit.width / travail.width, y: c.y * reduit.height / travail.height }; });
+        src = reduit;
+      }
+      // seulement la zone du tableau, pour la mémoire
+      var bx0 = Math.max(0, Math.floor(Math.min(q[0].x, q[1].x, q[2].x, q[3].x)) - 2);
+      var by0 = Math.max(0, Math.floor(Math.min(q[0].y, q[1].y, q[2].y, q[3].y)) - 2);
+      var bx1 = Math.min(src.width, Math.ceil(Math.max(q[0].x, q[1].x, q[2].x, q[3].x)) + 2);
+      var by1 = Math.min(src.height, Math.ceil(Math.max(q[0].y, q[1].y, q[2].y, q[3].y)) + 2);
+      var bw = Math.max(1, bx1 - bx0), bh = Math.max(1, by1 - by0);
+      var s = src.getContext("2d", { willReadFrequently: true }).getImageData(bx0, by0, bw, bh).data;
+      if (reduit) reduit.width = 0;
+      var H = homographie(q.map(function (c) { return { x: c.x - bx0, y: c.y - by0 }; }));
+
+      var sortie = document.createElement("canvas"); sortie.width = OW; sortie.height = OH;
+      var xs = sortie.getContext("2d");
+      xs.fillStyle = "#FFFFFF"; xs.fillRect(0, 0, OW, OH);
+      var image = xs.createImageData(pw, ph), o = image.data, du = 1 / pw, maxX = bw - 1.001, maxY = bh - 1.001, j = 0;
+      for (var y = 0; y < ph; y++) {
+        var v = (y + 0.5) / ph, u = 0.5 * du;
+        var nx = H.a * u + H.b * v + H.c, ny = H.d * u + H.e * v + H.f, de = H.g * u + H.h * v + 1;
+        var pnx = H.a * du, pny = H.d * du, pde = H.g * du;
+        for (var x = 0; x < pw; x++) {
+          var sx = nx / de - 0.5, sy = ny / de - 0.5;
+          if (sx < 0) sx = 0; else if (sx > maxX) sx = maxX;
+          if (sy < 0) sy = 0; else if (sy > maxY) sy = maxY;
+          var x0 = sx | 0, y0 = sy | 0, fx = sx - x0, fy = sy - y0;
+          var i00 = (y0 * bw + x0) * 4, i10 = i00 + 4, i01 = i00 + bw * 4, i11 = i01 + 4;
+          var w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+          o[j] = s[i00] * w00 + s[i10] * w10 + s[i01] * w01 + s[i11] * w11 + 0.5;
+          o[j + 1] = s[i00 + 1] * w00 + s[i10 + 1] * w10 + s[i01 + 1] * w01 + s[i11 + 1] * w11 + 0.5;
+          o[j + 2] = s[i00 + 2] * w00 + s[i10 + 2] * w10 + s[i01 + 2] * w01 + s[i11 + 2] * w11 + 0.5;
+          o[j + 3] = 255;
+          j += 4; nx += pnx; ny += pny; de += pde;
+        }
+      }
+      xs.putImageData(image, ox, oy);
+      var blob = await new Promise(function (ok) { sortie.toBlob(ok, "image/jpeg", QUALITE_JPEG); });
+      sortie.width = 0;
+      if (!blob) throw new Error("jpeg");
+      if (photo !== travail) return;   // une autre photo a été choisie pendant la préparation
+      blobSortie = await densite300(blob);
+      if (urlSortie) URL.revokeObjectURL(urlSortie);
+      urlSortie = URL.createObjectURL(blobSortie);
+      compteur++; enregistree = false;
+      nomSortie = nomDeSortie();
+      $("apercu").src = urlSortie;
+      var partageOK = peutPartager();
+      $("partager").hidden = iOS || !partageOK;   // sur iPhone, « Enregistrer la photo » ouvre déjà cette fenêtre
+      $("aide-enregistrer").textContent = iOS && partageOK
+        ? "Dans la fenêtre qui s'ouvre, touchez « Enregistrer l'image » : la photo va dans vos Photos. Si rien ne se passe : appuyez longtemps sur la photo ci-dessus, puis « Enregistrer dans Photos » (ou « Ajouter à Photos »)."
+        : iOS
+        ? "La photo va dans l'application Fichiers, dossier Téléchargements. Si rien ne se passe : appuyez longtemps sur la photo ci-dessus, puis « Enregistrer dans Photos » (ou « Ajouter à Photos »)."
+        : "La photo va dans vos Téléchargements. Si rien ne se passe : appuyez longtemps sur la photo ci-dessus, puis « Télécharger l'image ».";
+      montrer("ecran-resultat");
+      var avis = [];
+      if (p.ecart) avis.push("Attention : la taille donnée ne ressemble pas au tableau de la photo. Vérifiez la hauteur et la largeur (pas inversées ?).");
+      else if (p.ignoree) avis.push($("hauteur").value.trim() && $("largeur").value.trim()
+        ? "La taille donnée n'a pas été comprise (des nombres en cm, entre 5 et 400) : les proportions viennent de la photo."
+        : "Donnez la hauteur et la largeur, en cm : sans les deux, les proportions viennent de la photo.");
+      else if (p.biais) avis.push("La photo a été prise un peu de biais : les proportions du tableau sont estimées. Pour qu'elles soient parfaites, touchez « Revenir aux coins » et donnez la hauteur et la largeur du tableau.");
+      if (petite) avis.push("Cette photo est un peu petite : le tirage risque d'être flou. Si vous pouvez, reprenez le tableau en photo, de plus près.");
+      biaisVu = !!p.biais;
+      message(avis.join(" "), avis.length ? "erreur" : "");
+    } catch (e) {
+      message("La photo n'a pas pu être préparée sur ce téléphone. Essayez une photo plus petite, ou reprenez le tableau en photo.", "erreur");
+    } finally {
+      bouton.textContent = libelle;
+      BOUTONS_PENDANT.forEach(function (id) { $(id).disabled = false; });
+    }
+  }
+
+  // 300 points par pouce écrits dans l'en-tête du JPEG (le nombre de points, lui, ne change pas)
+  function octets(blob) {   // Blob.arrayBuffer manque avant iOS 14
+    if (blob.arrayBuffer) return blob.arrayBuffer();
+    return new Promise(function (ok, ko) {
+      var l = new FileReader();
+      l.onload = function () { ok(l.result); }; l.onerror = function () { ko(l.error); };
+      l.readAsArrayBuffer(blob);
+    });
+  }
+  async function densite300(blob) {
+    try {
+      var b = new Uint8Array(await octets(blob));
+      if (b[0] !== 0xFF || b[1] !== 0xD8) return blob;
+      if (b[2] === 0xFF && b[3] === 0xE0 && b[6] === 0x4A && b[7] === 0x46 && b[8] === 0x49 && b[9] === 0x46 && b[10] === 0) {
+        b[13] = 1; b[14] = 0x01; b[15] = 0x2C; b[16] = 0x01; b[17] = 0x2C;
+        return new Blob([b], { type: "image/jpeg" });
+      }
+      var app0 = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x01, 0x2C, 0x01, 0x2C, 0x00, 0x00]);
+      return new Blob([app0, b.subarray(2)], { type: "image/jpeg" });
+    } catch (e) { return blob; }
+  }
+
+  function nomDeSortie() {
+    var d = new Date(), z = function (n) { return (n < 10 ? "0" : "") + n; };
+    var propre = nomSource.replace(/[^\wÀ-ſ-]+/g, "-").replace(/-?\d{4}-\d\d-\d\d/g, "").replace(/-+/g, "-").slice(0, 40).replace(/^-+|-+$/g, "");
+    var base = propre && !/^(image|photo|img)$/i.test(propre) ? propre + "-" : "tableau-";
+    return base + "15x20-" + d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "-" + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()) + ".jpg";
+  }
+
+  // ---------------------------------------------------------------- enregistrer, partager
+  function peutPartager() {
+    try { return !!(navigator.canShare && navigator.canShare({ files: [new File([blobSortie || new Blob()], nomSortie || "photo.jpg", { type: "image/jpeg" })] })); }
+    catch (e) { return false; }
+  }
+  // "fait", "annule" (fenêtre fermée sans rien choisir) ou "" (partage impossible ici)
+  async function partagerFichier() {
+    var f = new File([blobSortie], nomSortie, { type: "image/jpeg" });
+    if (!(navigator.canShare && navigator.canShare({ files: [f] }))) return "";
+    try { await navigator.share({ files: [f] }); return "fait"; }
+    catch (e) { return e && e.name === "AbortError" ? "annule" : ""; }
+  }
+  function telecharger() {
+    var a = document.createElement("a");
+    a.href = urlSortie; a.download = nomSortie; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  $("enregistrer").addEventListener("click", async function () {
+    if (!blobSortie) return;
+    var bouton = this;
+    bouton.disabled = true;
+    setTimeout(function () { bouton.disabled = false; }, 2000);   // deux appuis rapides = un seul fichier
+    if (iOS) {
+      var r = await partagerFichier();
+      if (r === "fait") { enregistree = true; messageEnregistrer("Si vous avez touché « Enregistrer l'image », la photo est dans l'application Photos (c'est la dernière photo).", "ok"); return; }
+      if (r === "annule") { messageEnregistrer("La photo n'est pas encore enregistrée : touchez « Enregistrer la photo », puis « Enregistrer l'image ».", "erreur"); return; }
+    }
+    telecharger();
+    enregistree = true;
+    messageEnregistrer(iOS
+      ? "La photo a été envoyée dans l'application Fichiers, dossier Téléchargements : vérifiez qu'elle y est."
+      : "La photo a été envoyée dans vos Téléchargements : vérifiez qu'elle y est (application « Fichiers », ou album « Download » de vos photos).", "ok");
+  });
+  $("partager").addEventListener("click", async function () { if (blobSortie && await partagerFichier() === "fait") enregistree = true; });
+  $("preparer").addEventListener("click", function () { preparer(this); });
+  $("tourner").addEventListener("click", function () { quarts = (quarts + 1) % 4; preparer(this); });
+  $("retoucher").addEventListener("click", function () {
+    montrer("ecran-coins"); preparerVue();
+    if (biaisVu) $("bloc-taille").open = true;
+  });
+  function autre() { montrer("ecran-accueil"); $("choix").click(); }
+  $("autre-1").addEventListener("click", autre);
+  $("autre-2").addEventListener("click", function () {
+    if (blobSortie && !enregistree && !window.confirm("Vous n'avez pas encore enregistré cette photo. La laisser et en choisir une autre ?")) return;
+    autre();
+  });
+
+  // lien ouvert dans le petit navigateur d'une application (e-mail, Facebook…) : le partage et le
+  // téléchargement y manquent souvent → conseil d'ouvrir la page dans Safari ou Chrome
+  var ua = navigator.userAgent;
+  if (/; wv\)/.test(ua) || (iOS && (!navigator.canShare || !/Safari\//.test(ua)))) $("ouvrir-ailleurs").hidden = false;
+
+  // pour les essais automatiques sur ordinateur (aucun effet pour la personne)
+  window.__outilPhotos = { choisir: choisir, preparer: preparer, coins: function () { return coins; },
+    poserCoins: function (q) { coins = q; dessinerVue(); }, sortie: function () { return { blob: blobSortie, nom: nomSortie }; },
+    travail: function () { return travail; }, detecter: detecterTableau, affiner: affinerCoins };
+})();
+</script>
+</body>
+</html>
